@@ -86,9 +86,14 @@ while len(q) > 0:
             parent[nb] = node
             q.append(nb)
         else:
-            assert("Detected cycle" and False)
+            print("Cycle: ", end="")
+            while node != parent[nb]:
+                print("{} ".format(node+1), end="")
+                node = parent[node]
+            print("{} {}".format(node+1,nb+1))
+            assert False, "Detected cycle"
             
 for term in terminals:
-    assert(parent[term] >= -1)
+    assert (parent[term] >= -1), "Terminal {} not reachable from terminal {}".format(term+1, terminals[0]+1)
 
 print("Seems fine!")

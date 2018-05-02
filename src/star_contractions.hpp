@@ -6,14 +6,13 @@
 #include "boost/graph/dijkstra_shortest_paths_no_color_map.hpp"
 #include "heuristics.hpp"
 #include "paal_glue.hpp"
-//#include "MST.hpp"
 
 #include <signal.h>
 extern volatile sig_atomic_t g_stop_signal;
 
 using namespace boost;
 
-struct EarlyTerminate : public std::exception {};
+//struct EarlyTerminate : public std::exception {};
 
 struct Star {
 	int center;
@@ -276,6 +275,7 @@ void contract_till_the_bitter_end(Graph& g) {
 	int best_ratio_center;
 
 	// perfom heuristics
+	buy_zero(g);
 	run_all_heuristics(g);
 
 	int round = 1;
@@ -344,5 +344,15 @@ void contract_till_the_bitter_end(Graph& g) {
 }
 
 
+
+void print_emergency_solution(FILE* out, Graph &g) {
+	// MST approximation
+	greedy_2approx(g, std::back_inserter(g.partial_solution) );
+	g.partial_solution_weight = 0;
+	for(auto e : g.partial_solution) {
+		g.partial_solution_weight += e.weight();
+	}
+	print_solution(out, g);
+}
 
 

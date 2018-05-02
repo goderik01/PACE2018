@@ -79,6 +79,7 @@ struct Graph {
 
 	std::vector<int> degrees;
 	std::vector< incidence_list_t* > inc_edges;
+	std::vector< edge_list_t* > zero_edges;
 
 	edge_list_t edge_list;
 
@@ -110,6 +111,7 @@ struct Graph {
 	Graph(const Graph& g);
 private:
 	void _change_edge_target(Edge e, Vertex new_target);
+	void _merge_zero_edges(Vertex targer, Vertex source);
 };
 
 // Edge {{{
@@ -199,8 +201,10 @@ Graph::Graph(int vertex_count) {
 	std::fill(terminal_mask.begin(), terminal_mask.end(), false);
 
 	inc_edges.resize(vertex_count);
+	zero_edges.resize(vertex_count);
 	for(int i = 0; i < vertex_count; i++) {
 		inc_edges[i] = new incidence_list_t();
+		zero_edges[i] = new edge_list_t();
 	}
 }
 
@@ -530,6 +534,9 @@ void Graph::contract_edge(Edge e) {
 	if(is_terminal(s) && is_terminal(t)) {
 		unmark_terminal(t);
 	}
+
+	//contracting zero edges
+	_merge_zero_edges(s, t);
 }
 
 bool Graph::buy_edge(Edge e) {
@@ -570,8 +577,18 @@ void Graph::suppress_vertex(Vertex v) {
 
 	remove_edge(e);
 	remove_edge(f);
+  _merge_zero_edges(s, v);
 }
 
+void
+Graph::_merge_zero_edges(Vertex target, Vertex source)
+{
+	assert(zero_edges[target] != NULL);
+	assert(zero_edges[source] != NULL);
+	zero_edges[target]->splice(zero_edges[target]->end(), *zero_edges[source]);
+	//delete zero_edges[source];
+	zero_edges[source] = NULL;
+}
 
 struct WeightMap {
 	typedef int value_type;
@@ -606,7 +623,7 @@ namespace boost {
 		typedef std::list<Edge>::const_iterator edge_iterator;
 
 		typedef boost::counting_iterator<int> vertex_iterator;
-		typedef unsigned int vertices_size_type;
+		typedef int vertices_size_type;
 
 	};
 
@@ -746,14 +763,32 @@ namespace boost {
 } // namespace boost
 
 
-void print_solution(FILE* out, Graph &g) {
-
-	fprintf(out, "VALUE %d\n", g.partial_solution_weight);
-	for(auto e : g.partial_solution) {
-		e.print(out);
+void
+print_and_destroy_zero_edges(FILE *out, Graph &g, Vertex v)
+{
+	if (g.zero_edges[v] == NULL) {
+		return;
 	}
+
+	for (auto e : *(g.zero_edges[v])) {
+		e.print(out);
+		debug_printf("[zero edge in the solution] s %d t %d  and weight %d\n", e.source(), e.target(), e.weight());
+	}
+
+	delete g.zero_edges[v];
+	g.zero_edges[v] = NULL;
 }
 
+
+void print_solution(FILE* out, Graph &g) {
+	fprintf(out, "VALUE %d\n", g.partial_solution_weight);
+	for(auto e : g.partial_solution) {
+		e.print(out);	
+		//buying zero edge as well
+		print_and_destroy_zero_edges(out, g, e.source());
+		print_and_destroy_zero_edges(out, g, e.target());
+	}
+}
 
 
 void print_graph(FILE* out, const Graph& g) {

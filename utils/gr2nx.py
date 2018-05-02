@@ -32,13 +32,24 @@ def input_to_graph(path):
 
     return G
 
+# nx.Graph
+def solution_to_graph(path):
+    with open(path, "r") as f:
+        G = nx.Graph()
+        f.readline()
+
+        for line in f:
+            u,v = line.split()
+            G.add_edge(int(u), int(v))
+
+        return G
+
+
 # [int]
 def graph_to_terminals(G):
     return [v for v in G.nodes() if len(G.node[v]) == 1]
 
 def solution_contains_all_terminals(G, terminals):
     t_sol = {v for v in G.nodes() if v in terminals}
-    
+
     return len(t_sol.difference(set(terminals))) == 0
-
-

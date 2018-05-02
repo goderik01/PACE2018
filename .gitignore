@@ -77,3 +77,6 @@ ps/
 
 # OSX
 .DS_Store
+
+#reusults
+res/

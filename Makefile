@@ -33,7 +33,7 @@ bin:
 package: pkg/cuib.tgz
 
 pkg/cuib.tgz: bin/$(MAIN) CMakeLists.txt | pkg/staging
-	cp --parents $$($(CC) $(CFLAGS) $(INC) -H src/$(MAIN).cpp 2>&1 | sed 's/\.* //' | grep -E '(src)|(^\.)') pkg/staging 2>/dev/null
+	cp --parents $$($(CC) $(CFLAGS) $(INC) -H -w src/$(MAIN).cpp 2>&1 | sed 's/\.* //' | grep -E '(src)|(^\.)') pkg/staging 2>/dev/null
 	cp src/$(MAIN).cpp pkg/staging/src/
 	cp CMakeLists.txt pkg/staging
 	cd pkg/staging && \
@@ -91,5 +91,11 @@ topdf: data dot pdf
 	( cd dot && for filename in *.gr; do \
 		echo $$filename; \
 		dot -Tps $$filename -o ../pdf/$$filename.ps; \
+	done)
+
+test_zero: data
+	( cd data && for filename in *.gr; do \
+		echo $$filename; \
+		cat $$filename|grep " 0"|wc; \
 	done)
 
