@@ -18,15 +18,11 @@ solG = gr2nx.solution_to_graph(args.ansfile[0])
 if not nx.is_connected(solG):
     for c in nx.connected_components(solG):
         print(c)
+        print([ inG[u][v]['weight'] for u,v in solG.subgraph(c).edges ])
+        print("--------------------")
     assert False, "The solution is not connected"
 
 for t in gr2nx.graph_to_terminals(inG):
-<<<<<<< Updated upstream
     assert solG.has_node(t), "Terminal {} not in solution".format(t)
 
 print("The solution is connected")
-=======
-    assert solG.has_node(t), "Solution does not contain terminal {}".format(t)
-
-print("The solution is connected and contain all terminals")
->>>>>>> Stashed changes

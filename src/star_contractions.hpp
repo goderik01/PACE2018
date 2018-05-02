@@ -103,26 +103,27 @@ struct best_star_visitor : public dijkstra_visitor<> {
 
 	Ratio& best_ratio;
 	std::vector<Ratio>& best_ratio_at;
-	std::vector<bool>& ratio_invalid;
 	Star& result;
 
-	bool star_completed;
-	Ratio current_ratio;
+	bool &star_completed;
+	Ratio &current_ratio;
 
 	best_star_visitor(
 			std::vector<int>& dist,
 			std::vector<Edge>& pred_edge,
 			Ratio& best_ratio,
 			std::vector<Ratio>& best_ratio_at,
-			std::vector<bool>& ratio_invalid,
-			Star& result
+			Star& result,
+			bool& sc,
+			Ratio& real_ratio
 			) :
 		dist(dist),
 		pred_edge(pred_edge),
 		best_ratio(best_ratio),
 		best_ratio_at(best_ratio_at),
-		ratio_invalid(ratio_invalid),
-		result(result)
+		result(result),
+		star_completed(sc),
+		current_ratio(real_ratio)
 	{
 		star_completed = false;
 		current_ratio.weight = 0;
@@ -130,15 +131,6 @@ struct best_star_visitor : public dijkstra_visitor<> {
 	}
 
 	inline void examine_vertex(int v, const Graph& g) {
-
-		//Ratio r = best_ratio_at[v] + best_ratio;
-		//fprintf(stderr, "  At vertex %d: ratio[v] = %lld/%d, center_ratio = %lld/%d, sum_ratio = %lld/%d dist = %d\n", v, best_ratio_at[v].weight, best_ratio_at[v].work(), best_ratio.weight, best_ratio.work(), r.weight, r.work(), dist[v]);
-		if (best_ratio_at[v] + best_ratio >= dist[v]) {
-			//fprintf(stderr, "  Invalidating %d\n",  v);
-			ratio_invalid[v] = true;
-		}
-
-
 		if (! star_completed ) {
 			if ( g.terminal_mask[v] ) {
 				//fprintf(stderr, "Adding terminal %d at disance %d to star\n", v, dist[v]);
@@ -165,27 +157,20 @@ struct best_star_visitor : public dijkstra_visitor<> {
 
 
 
-void contract_star(Graph& g, Star& s, std::vector<Edge>& pred_edge) {
-	pred_edge[s.center] = null_edge;
-
+Vertex contract_star(Graph& g, Star& s) {
 	std::vector<Edge> edges_to_contract;
 
-	for(auto v : s.terminals) {
-		// we first gather all edges as contracting will change some vertex indices
-		// (and thus invalidate predecessor map)
-		while( pred_edge[v] != null_edge ) {
-			Edge e = pred_edge[v];
+	s.terminals.push_back(s.center);
+	// UGLY DIRTY HACK !!!
+	std::swap(s.terminals, g.terminals);
+	greedy_2approx(g, std::back_inserter(edges_to_contract));
+	std::swap(s.terminals, g.terminals);
 
-			// some edges might be present on more than one path from center to terminal;
-			// we first gather them and later push them to contracted_edges only once
-			edges_to_contract.push_back(e);
-			v = source(e, g);
-		}
-	}
-
+	Vertex ret = -1;
 	for(auto e : edges_to_contract) {
-		g.buy_edge(e);
+		ret = g.buy_edge(e);
 	}
+	return ret;
 }
 
 
@@ -222,41 +207,35 @@ void find_star(
 		Ratio& best_ratio,
 		int center,
 		std::vector<Ratio>& best_ratio_at,
-		std::vector<bool>& ratio_invalid,
 		Star& result) {
 
-	int n = g.vertex_count;
-	std::vector<int> dist(n);
-	iterator_property_map< std::vector<int>::iterator,
-			property_map<Graph, vertex_index_t>::const_type >
-		dist_pm(dist.begin(), get(vertex_index, g));
+	bool completed;
+	Ratio real_ratio;
+	std::vector<int> dist(g.vertex_count);
 
 	best_star_visitor bv(dist,
 			pred_edge,
 			best_ratio,
 			best_ratio_at,
-			ratio_invalid,
-			result
+			result,
+			completed,
+			real_ratio
 			);
 	result.center = center;
 
 	dijkstra_shortest_paths_no_color_map(g, center,
-		distance_map(dist_pm).
+		distance_map(&dist[0]).
 		visitor(bv) );
-}
 
-
-
-void print_emergency_result(FILE* out, Graph& g) {
-	std::vector<Edge> mst_solution;
-	greedy_2approx(g, std::back_inserter(mst_solution));
-
-	for(auto e : mst_solution) {
-		g.partial_solution_weight += e.weight();
-		g.partial_solution.push_back(e);
-	}
-
-	print_solution(out,g);
+#ifdef NDEBUG
+	if (false) debug_printf(
+#else
+	Assert(real_ratio == best_ratio,
+#endif
+		"Ratio expected %lld/%d but got only %lld/%d\n"
+		"Got star centered at %i with %i terminals\n",
+		best_ratio.weight, best_ratio.work(), real_ratio.weight, real_ratio.work(),
+		result.center, (int)result.terminals.size());
 }
 
 
@@ -274,31 +253,35 @@ void contract_till_the_bitter_end(Graph& g) {
 	Ratio best_ratio;
 	int best_ratio_center;
 
-	// perfom heuristics
-	buy_zero(g);
-	run_all_heuristics(g);
+	std::vector<Weight> dist(g.vertex_count);
+	const auto cmp = [&](Vertex a, Vertex b) { return dist[a] < dist[b]; };
+	Heap<Vertex, decltype(cmp), std::vector<unsigned>, 4> heap{cmp};
+	heap.map.assign(g.vertex_count, heap.not_in_heap);
 
 	int round = 1;
 
 	debug_printf("|V| = %d, |E| = %d, |R| = %d\n", g.vertex_count, g.edge_count, g.terminal_count);
-	while (g.terminal_count > 1) {
+	while (g.terminal_count > CONST_STOP_CONTRACTIONS_AT_NUMBER_TERMINALS) { TIMER_BEGIN {
 		int invalid_ratio_count = 0;
 		debug_printf("Starting round %d\n",round);
 
 		best_ratio = inf_ratio;
 		best_ratio_center = n;
 
-		for(int i = 0; (i < n) && (g_stop_signal == 0); i++) {
+		int isolated_counter = 0;
+		for (int i = 0; i < n; i++) {
+			CHECK_SIGNALS(goto interrupted);
+
 			if( g.degrees[i] == 0) {
+				isolated_counter++;
 				//fprintf(stderr, "  Vertex %d skipped (contraction orphan)\n", i);
 				continue;
 			}
-			if( ratio_invalid[i] ) {
+			if( ratio_invalid[i]) {
 				invalid_ratio_count++;
 				//fprintf(stderr, "  Recomputing ratio at %d\n", i);
 				best_ratio_at[i] = find_best_ratio_at(g, i);
 				ratio_invalid[i] = false;
-
 			}
 
 			if(best_ratio_at[i] < best_ratio) {
@@ -306,53 +289,56 @@ void contract_till_the_bitter_end(Graph& g) {
 				best_ratio = best_ratio_at[i];
 			}
 		}
+		debug_printf("Found %d isolated vertices\n", isolated_counter);
 
-		if (g_stop_signal == 0) {
-			debug_printf("Invalid ratios recomputed: %d\n", invalid_ratio_count);
-			debug_printf("Best ratio is %lld/%d, centered at %d\n", best_ratio.weight, best_ratio.work(), best_ratio_center);
+		CHECK_SIGNALS(goto interrupted);
 
-			Star s;
-			std::vector<Edge> pred_edge(n,null_edge);
-			// find star; also invalidates ratios at centers too close to this star
-			debug_printf("Finding the best star... ");
-			find_star(g, pred_edge, best_ratio, best_ratio_center, best_ratio_at, ratio_invalid, s);
-			// contract star
-			debug_printf("Done\n");
-			debug_printf("Star with %zu terminals\n", s.terminals.size());
-			debug_printf("Contracting... ");
-			contract_star(g, s, pred_edge);
-			debug_printf("Done\n");
-			round++;
-			debug_printf("|V| = %d, |E| = %d, |R| = %d\n", g.vertex_count, g.edge_count, g.terminal_count);
-			/*
-			debug_printf("Terminals: ");
-			for(Vertex v : g.terminals) {
-				debug_printf("%d ", v);
-			}
-			*/
-			debug_printf("\n");
-		} else { // compute the rest using MST approximation
-			print_emergency_result(stdout, g);
-			exit(EXIT_SUCCESS);
+		debug_printf("Invalid ratios recomputed: %d\n", invalid_ratio_count);
+		debug_printf("Best ratio is %lld/%d, centered at %d\n", best_ratio.weight, best_ratio.work(), best_ratio_center);
+
+		Star s;
+		std::vector<Edge> pred_edge(n,null_edge);
+		// find star; also invalidates ratios at centers too close to this star
+		debug_printf("Finding the best star... ");
+		find_star(g, pred_edge, best_ratio, best_ratio_center, best_ratio_at, s);
+		// contract star
+		debug_printf("Done\n");
+		debug_printf("Star with %zu terminals\n", s.terminals.size());
+		debug_printf("Contracting... ");
+		Vertex c = contract_star(g, s);
+		assert(c != -1);
+		assert(c != -2);
+
+		dist.assign(g.vertex_count, std::numeric_limits<Weight>::max());
+		dist[c] = 0;
+		heap.push(c);
+		Dijkstra(g, dist, dummy, heap, [&](Vertex v){
+			if (best_ratio_at[v] >= dist[v])
+				ratio_invalid[v] = true;
+		});
+
+		debug_printf("Done\n");
+		round++;
+		debug_printf("|V| = %d, |E| = %d, |R| = %d\n", g.vertex_count, g.edge_count, g.terminal_count);
+		/*
+		debug_printf("Terminals: ");
+		for(Vertex v : g.terminals) {
+			debug_printf("%d ", v);
 		}
-	
+		*/
+
+		CHECK_SIGNALS(goto interrupted);
+
 		// perfom heuristics to clean it before next run
-		if(g_stop_signal != 0) {
-			run_all_heuristics(g);
-		}
-	}
+		run_noninvalidating_heuristics(g);
+	} TIMER_END("round took: %lg s\n\n", timer); }
+	
+	if(CONST_STOP_CONTRACTIONS_AT_NUMBER_TERMINALS > 1)
+		greedy_2approx(g, std::back_inserter(g.partial_solution));
+	
+	return;
+
+	interrupted:
+	debug_printf("%s interrupted\n", __func__);
+	greedy_2approx(g, std::back_inserter(g.partial_solution));
 }
-
-
-
-void print_emergency_solution(FILE* out, Graph &g) {
-	// MST approximation
-	greedy_2approx(g, std::back_inserter(g.partial_solution) );
-	g.partial_solution_weight = 0;
-	for(auto e : g.partial_solution) {
-		g.partial_solution_weight += e.weight();
-	}
-	print_solution(out, g);
-}
-
-

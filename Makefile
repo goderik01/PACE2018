@@ -1,5 +1,7 @@
 BUILD=debug
 
+ADDITIONAL_CFLAGS=
+
 CC=g++
 # CC=clang
 # CFLAGS=-std=c++14 -pedantic -Wall -Wextra -Wno-unused-result -O3 -march=native -ggdb
@@ -7,7 +9,7 @@ cflags.common=-std=c++14 -O3 -Wall -Wextra -Wno-unused-result -Wfatal-errors
 cflags.debug=-march=native -ggdb
 cflags.release=-march=native -DNDEBUG
 
-CFLAGS=${cflags.common} ${cflags.${BUILD}}
+CFLAGS=${cflags.common} ${cflags.${BUILD}} ${ADDITIONAL_CFLAGS}
 LDFLAGS=
 INC=-I./include_override -I./include/boost_1_66_0/ -I./include/paal/include/
 
@@ -20,7 +22,7 @@ HEADERS=$(wildcard src/*.hpp)
 # clear implicit rules
 .SUFFIXES: 
 
-default: bin/test bin/star_contractions_test
+default:  bin/star_contractions_test
 
 
 bin/%: src/%.cpp $(HEADERS) | bin
@@ -28,6 +30,9 @@ bin/%: src/%.cpp $(HEADERS) | bin
 
 bin:
 	mkdir -p bin
+
+parameterTuning/%: src/%.cpp $(HEADERS) | parameterTuning
+	$(CC) $(CFLAGS) $(INC) $(LDFLAGS) -o $@ $<
 
 .PHONY: package
 package: pkg/cuib.tgz
@@ -66,6 +71,9 @@ clean:
 	rm -rf bin/
 	rm -rf pkg/
 
+.PHONY: clean_tuning
+clean_tuning:
+	rm -rf parameterTuning/star_contractions_test
 
 data:
 	@if [ ! -d directory ]; then\

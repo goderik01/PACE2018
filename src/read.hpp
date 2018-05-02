@@ -21,7 +21,7 @@ read_edges(FILE *fin, Graph *g, size_t nedges, char *buff, size_t buff_len)
 		//fprintf(stderr, "edge: %s", buff);
 		if (strcmp(buff, PACE_SECTION_END) != 0) {
 			sscanf(buff, "%*c %u %u %u", &u, &v, &weight);
-			g->add_edge(u-1, v-1, weight, u, v);
+			g->add_edge(u, v, weight, u, v);
 		}
 	}
 }
@@ -45,14 +45,12 @@ read_terminals(FILE *fin, Graph *g, char *buff, size_t buff_len)
 		fgets(buff, buff_len, fin);
 		if (strcmp(buff, PACE_SECTION_END) != 0) {
 			sscanf(buff, "%*c %u", &terminal);
-			--terminal;
 			g->mark_terminal(terminal);
 		}
 	}
 }
 
-Graph*
-graph_from_file(FILE *fin)
+Graph graph_from_file(FILE *fin)
 {
 	unsigned int nvert = 0, nedges = 0;
 	char buff[READ_HPP_BUFF_LEN];
@@ -63,18 +61,15 @@ graph_from_file(FILE *fin)
 	fgets(buff, READ_HPP_BUFF_LEN, fin);
 	sscanf(buff, "%*s %u", &nedges);
 
-	//fprintf(stderr, "Graph with %u vertices and %u edges to be created.", nvert, nedges);
+	Graph g(nvert + 1);
 
-	Graph *g = new Graph(nvert);
+	read_edges(fin, &g, nedges, buff, READ_HPP_BUFF_LEN);
+	read_terminals(fin, &g, buff, READ_HPP_BUFF_LEN);
 
-	//fprintf(stderr, "Graph created; reading edges.\n");
-	read_edges(fin, g, nedges, buff, READ_HPP_BUFF_LEN);
-	//fprintf(stderr, "Marking terminals.");
-	read_terminals(fin, g, buff, READ_HPP_BUFF_LEN);
-	//fprintf(stderr, "Done.");
+	g.save_orig_graph();
 
 	fclose(fin);
-	return (g);
+	return g;
 }
 
 #endif // READ_HPP
