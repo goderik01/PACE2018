@@ -50,3 +50,30 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+
+# binaries
+bin/
+
+# boost and other libs
+include/
+
+# directory where all necessary files are staged for cmake package
+pkg/
+
+# data
+data
+*.gr
+*.ost
+
+#dot
+pdf/
+dot/
+*.pdf
+*.ps
+*,dot
+*.png
+ps/
+
+# OSX
+.DS_Store
