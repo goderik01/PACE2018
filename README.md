@@ -29,7 +29,7 @@ Our algorithm proceeds with the following steps:
 1. Run simple 1-safe heuristics.
    * Handle small degree vertices.
         - Suppress Steiner vertices of degree two.
-        - Remove Steiner verticies of degree one.
+        - Remove Steiner vertices of degree one.
         - Buy edges incident to terminal of degree one.
    * Buy zero cost edges.
    * Run *shortest path test*:
@@ -44,7 +44,7 @@ Our algorithm proceeds with the following steps:
      * If time runs out, finish the partial solution using MST-approximation.
 3. Improve the solution by following methods: 
      * *Local search using MST-approximation.*
-       From the solution compute the MST-approximation on all terminals and all branching Steiner verticies
+       From the solution compute the MST-approximation on all terminals and all branching Steiner vertices
        plus a few randomly chosen promising Steiner vertices.
        We clean up the solution and repeat without additional random vertices.
     * *Local search using Dreyfus-Wagner partition.*
