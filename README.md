@@ -52,8 +52,6 @@ Our algorithm proceeds with the following steps:
       obtains the partition of the vertices given one of the promising solutions and then compute an optimal Steiner tree with this structure.
       This step is much more time consuming so we run it only sparsely.
 
-## Resources
-
 ## Acknowledgments
 #### Authors
 + **Radek Hušek** Computer Science Institute of Charles University, Faculty of Mathematics and Physics, Charles University, Prague, Czech Republic
