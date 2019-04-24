@@ -1,0 +1,85 @@
+\documentclass[review,a4paper]{article}
+\pdfoutput=1
+ \usepackage{hyperref}
+\usepackage{a4wide}
+\usepackage[protrusion=true,expansion=true]{microtype}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[all=normal,bibliography=tight]{savetrees}
+\usepackage{authblk}   %affiliations
+
+\usepackage{amsmath,amssymb,amsfonts,amsthm}
+
+
+
+\begin{document}
+\title{Steiner Tree Heuristics for PACE 2018 Challenge Track C\thanks{%
+    The work was supported by the project GAUK 1514217 and the project SVV–2017–260452. R. Hušek, D. Knop, T. Masařík we also supported by the Center of Excellence – ITI, project P202/12/G061 of GA ČR. D. Knop was supported by the project NFR MULTIVAL of the Research Council of Norway. E. Eiben was supported by Pareto-Optimal Parameterized Algorithms (ERC Starting Grant 715744).
+}}
+\author[1]{Radek Hušek} 
+\author[1]{Tomáš Toufar}
+\author[2]{Dušan Knop}
+\author[3]{Tomáš Masařík}
+\author[2]{Eduard Eiben}
+
+
+\affil[1]{Computer Science Institute, Charles University, Prague, Czech Republic}
+\affil[2]{Department of Informatics, University of Bergen, Norway}
+\affil[3]{Department of Applied Mathematics, Charles University, Prague, Czech Republic}
+
+
+\date{April 2018}
+
+\maketitle
+
+This repository (\url{https://github.com/goderik01/PACE2018}) contains a program that computes a heuristic approximation for the Weighted Steiner Tree problem. It was created for the PACE challenge 2018 Track C (heuristic track) \url{https://pacechallenge.wordpress.com/pace-2018/}, see also the report~\cite{report}.
+
+\paragraph{Compile instructions.}
+The root folder contains a Makefile with all the neccessary targets. Our program uses the boost library (it was tested with version 1.66.0, see also the documentation~\cite{boost}). We recommend to dowload its sources (make boost does the job for you). Then, you can compile the sources by running make which uses g++ compiler.
+
+\paragraph{Input/Output description.}
+To download public test data use make data which downloads test public data from PACE challenge into directory data/.
+
+The input\&output format is described on the PACE Challenge website.
+
+\paragraph{How to run the program.}
+The compiled binary (bin/star\_contractions\_test) expects input data on the standard input. The program run until it recieves the SIGTERM signal. After that it outputs a solution to the standard output within 30 seconds.
+
+\paragraph{Concise description of our algorithm.}
+Our algorithm proceeds with the following steps:
+
+\begin{itemize}
+  \item Run simple 1-safe heuristics.
+  \begin{itemize}
+  \item Handle small degree vertices.
+    \begin{itemize}
+      \item Suppress Steiner vertices of degree two.
+      \item Remove Steiner vertices of degree one.
+      \item Buy edges incident to terminal of degree one.
+    \end{itemize}
+  \item Buy zero cost edges.
+  \item Run shortest path test: Remove edges longer than the length of the shortest path between the endpoints.
+  \item Run Terminal distance test~\cite{TDT}: Buy the lightest edge on a cut if the second lightest edge in the cut is heavier than shortest path between any two terminals that are on different sides of the cut.
+  \end{itemize}
+\item Perform star contractions based on paper Parameterized Approximation Schemes for Steiner Trees with Small Number of Steiner Vertices~\cite{stars} for at most 10 minutes.
+  \begin{itemize}
+    \item  Buy the star (center is any vertex and lists are Terminals) in the metric closure that has the best ratio (sum of the weights over number of terminals minus one).
+    \item After each step run following heuristics: handle small degree Steiner vertices and fast special case of shortest path test.
+    \item If time runs out, finish the partial solution using MST-approximation.
+  \end{itemize}
+\item Improve the solution by following methods:
+  \begin{itemize}
+    \item Local search using MST-approximation. From the solution compute the MST-approximation on all terminals and all branching Steiner vertices plus a few randomly chosen promising Steiner vertices. We clean up the solution and repeat without additional random vertices.
+    \item Local search using Dreyfus-Wagner partition. Inspired by Dreyfus-Wagner FPT algorithm~\cite{DW} we derive a heuristic that obtains the partition of the vertices given one of the promising solutions and then compute an optimal Steiner tree with this structure. This step is much more time consuming so we run it only sparsely.
+    \end{itemize}
+\end{itemize}
+
+\paragraph{Acknowledgments.}
+We thank to Torstein Strømme for helpful discussions.
+
+
+\bibliographystyle{plain}
+\bibliography{readme}
+
+\end{document} 
